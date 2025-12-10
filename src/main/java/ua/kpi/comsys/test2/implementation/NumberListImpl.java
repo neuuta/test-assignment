@@ -12,25 +12,55 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
+import java.io.FileNotFoundException;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.NoSuchElementException;
+import java.util.Scanner;
 
 import ua.kpi.comsys.test2.NumberList;
 
 /**
  * Custom implementation of INumberList interface.
  * Has to be implemented by each student independently.
- *
- * @author Alexander Podrubailo
+ * 
+ * Varian:3310
+ * List Type: Кільцевий однонаправлений
+ * First system: Двійкова
+ * Second system: Трійкова
+ * Operation: OR
+ * @author Vitalii Zamkovyu
  *
  */
 public class NumberListImpl implements NumberList {
+    private class Node {
+        Byte value;
+        Node next;
 
+        Node(Byte value) {
+            this.value = value;
+            this.next = null;
+        }
+    }
+
+    private Node head;
+    private Node tail;
+    private int size;
+    private int base;
     /**
      * Default constructor. Returns empty <tt>NumberListImpl</tt>
      */
     public NumberListImpl() {
-        // TODO Auto-generated method stub
+        this.head = null;
+        this.tail = null;
+        this.size = 0;
+	this.base = 2;
     }
 
+    private NumberListImpl(int base) {
+        this();
+        this.base = base;
+    }
 
     /**
      * Constructs new <tt>NumberListImpl</tt> by <b>decimal</b> number
@@ -39,7 +69,15 @@ public class NumberListImpl implements NumberList {
      * @param file - file where number is stored.
      */
     public NumberListImpl(File file) {
-        // TODO Auto-generated method stub
+        this();
+        try (Scanner scanner = new Scanner(file)) {
+            if (scanner.hasNextLine()) {
+                String line = scanner.nextLine().trim();
+                parseDecimalString(line);
+            }
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
     }
 
 
@@ -49,10 +87,33 @@ public class NumberListImpl implements NumberList {
      *
      * @param value - number in string notation.
      */
+
     public NumberListImpl(String value) {
-        // TODO Auto-generated method stub
+        this();
+        parseDecimalString(value);
     }
 
+    private void parseDecimalString(String decimalStr) {
+        if (decimalStr == null || decimalStr.isEmpty()) return;
+	    try {
+            for (char c : decimalStr.toCharArray()) {
+                if (!Character.isDigit(c)) {
+                    clear();     
+                    return;
+                }
+            }
+
+            java.math.BigInteger bigInt = new java.math.BigInteger(decimalStr);
+            String binaryStr = bigInt.toString(2);
+
+            for (char c : binaryStr.toCharArray()) {
+                this.add(Byte.parseByte(String.valueOf(c)));
+            }
+
+        } catch (Exception e) {
+            clear();
+        }
+    }
 
     /**
      * Saves the number, stored in the list, into specified file
@@ -61,7 +122,11 @@ public class NumberListImpl implements NumberList {
      * @param file - file where number has to be stored.
      */
     public void saveList(File file) {
-        // TODO Auto-generated method stub
+	try (FileWriter writer = new FileWriter(file)) {
+            writer.write(toDecimalString());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
 
@@ -72,7 +137,7 @@ public class NumberListImpl implements NumberList {
      */
     public static int getRecordBookNumber() {
         // TODO Auto-generated method stub
-        return 0;
+        return 3310;
     }
 
 
@@ -85,10 +150,90 @@ public class NumberListImpl implements NumberList {
      * @return <tt>NumberListImpl</tt> in other scale of notation.
      */
     public NumberListImpl changeScale() {
-        // TODO Auto-generated method stub
-        return null;
+	NumberListImpl resultTernary = new NumberListImpl(3);
+
+        if (isEmpty() || (size == 1 && head.value == 0)) {
+            resultTernary.add((byte)0);
+            return resultTernary;
+        }
+
+        NumberListImpl tempBinary = this.cloneList();
+        
+        while (!tempBinary.isZero()) {
+            int remainder = tempBinary.divModBy(3);
+            resultTernary.helperAddFirst((byte) remainder);
+        }
+        
+        if (resultTernary.isEmpty()) {
+            resultTernary.add((byte)0);
+        }
+        return resultTernary;
     }
 
+    private void helperAddFirst(Byte val) {
+        Node newNode = new Node(val);
+        if (isEmpty()) {
+            head = newNode;
+            tail = newNode;
+            tail.next = head;
+        } else {
+            newNode.next = head;
+            head = newNode;
+            tail.next = head;
+        }
+        size++;
+    }
+
+    private NumberListImpl cloneList() {
+        NumberListImpl clone = new NumberListImpl(this.base);
+        if (isEmpty()) return clone;
+        Node curr = head;
+        do {
+            clone.add(curr.value);
+            curr = curr.next;
+        } while (curr != head);
+        return clone;
+    }
+
+    private boolean isZero() {
+        if (isEmpty()) return true;
+        Node curr = head;
+        do {
+            if (curr.value != 0) return false;
+            curr = curr.next;
+        } while (curr != head);
+        return true;
+    }
+
+    private int divModBy(int divisor) {
+        int remainder = 0;
+        Node curr = head;
+        do {
+	   int currentVal = remainder * this.base + curr.value;
+            byte newVal = (byte) (currentVal / divisor);
+            remainder = currentVal % divisor;
+            curr.value = newVal;
+            curr = curr.next;
+        } while (curr != head);
+        
+        while (size > 1 && head.value == 0) {
+            helperRemoveFirst();
+        }
+        return remainder;
+    }
+
+    private void helperRemoveFirst() {
+        if (isEmpty()) return;
+        if (head == tail) {
+            head = null;
+            tail = null;
+            size = 0;
+        } else {
+            head = head.next;
+            tail.next = head;
+            size--;
+        }
+    }
 
     /**
      * Returns new <tt>NumberListImpl</tt> which represents the result of
@@ -101,11 +246,24 @@ public class NumberListImpl implements NumberList {
      * @return result of additional operation.
      */
     public NumberListImpl additionalOperation(NumberList arg) {
-        // TODO Auto-generated method stub
-        return null;
+	NumberListImpl result = new NumberListImpl();
+        
+        int len1 = this.size();
+        int len2 = arg.size();
+        int maxLen = Math.max(len1, len2);
+        
+        for (int i = 0; i < maxLen; i++) {
+            int idx1 = i - (maxLen - len1);
+            int idx2 = i - (maxLen - len2);
+            
+            byte val1 = (idx1 >= 0) ? this.get(idx1) : 0;
+            byte val2 = (idx2 >= 0) ? arg.get(idx2) : 0;
+            
+            byte resVal = (byte) ((val1 == 1 || val2 == 1) ? 1 : 0);
+            result.add(resVal);
+        }
+        return result;
     }
-
-
     /**
      * Returns string representation of number, stored in the list
      * in <b>decimal</b> scale of notation.
@@ -113,36 +271,62 @@ public class NumberListImpl implements NumberList {
      * @return string representation in <b>decimal</b> scale.
      */
     public String toDecimalString() {
-        // TODO Auto-generated method stub
-        return null;
+        java.math.BigInteger res = java.math.BigInteger.ZERO;
+        if (isEmpty()) return "0";
+        Node curr = head;
+        do {
+	    res = res.multiply(java.math.BigInteger.valueOf(this.base));
+            res = res.add(java.math.BigInteger.valueOf(curr.value));
+            curr = curr.next;
+        } while (curr != head);
+        return res.toString();
     }
-
 
     @Override
     public String toString() {
-        // TODO Auto-generated method stub
-        return null;
+    	if (isEmpty()) return "";
+        StringBuilder sb = new StringBuilder();
+        Node curr = head;
+        do {
+            sb.append(curr.value);
+            curr = curr.next;
+        } while (curr != head);
+        return sb.toString();
     }
 
 
     @Override
     public boolean equals(Object o) {
-        // TODO Auto-generated method stub
-        return false;
+	if (this == o) return true;
+        if (!(o instanceof NumberListImpl)) return false;
+        NumberListImpl that = (NumberListImpl) o;
+        
+        if (this.size != that.size) return false;
+        if (this.isEmpty() && that.isEmpty()) return true;
+        
+        Node n1 = this.head;
+        Node n2 = that.head;
+        
+        for (int i = 0; i < size; i++) {
+            if (!n1.value.equals(n2.value)) return false;
+            n1 = n1.next;
+            n2 = n2.next;
+        }
+        return true;
     }
 
 
     @Override
     public int size() {
         // TODO Auto-generated method stub
-        return 0;
+        return size;
     }
 
 
     @Override
     public boolean isEmpty() {
         // TODO Auto-generated method stub
-        return false;
+        return size==0;
     }
 
 
@@ -156,7 +340,24 @@ public class NumberListImpl implements NumberList {
     @Override
     public Iterator<Byte> iterator() {
         // TODO Auto-generated method stub
-        return null;
+	return new Iterator<Byte>() {
+            private Node current = head;
+            private int count = 0;
+
+            @Override
+            public boolean hasNext() {
+                return count < size;
+            }
+
+            @Override
+            public Byte next() {
+                if (!hasNext()) throw new NoSuchElementException();
+                Byte val = current.value;
+                current = current.next;
+                count++;
+                return val;
+            }
+        };
     }
 
 
@@ -177,7 +378,19 @@ public class NumberListImpl implements NumberList {
     @Override
     public boolean add(Byte e) {
         // TODO Auto-generated method stub
-        return false;
+	if (e == null) return false;
+        Node newNode = new Node(e);
+        if (isEmpty()) {
+            head = newNode;
+            tail = newNode;
+            tail.next = head;
+        } else {
+            tail.next = newNode;
+            tail = newNode;
+            tail.next = head;
+        }
+        size++;
+        return true;
     }
 
 
@@ -226,14 +439,22 @@ public class NumberListImpl implements NumberList {
     @Override
     public void clear() {
         // TODO Auto-generated method stub
-
+	head = null;
+        tail = null;
+        size = 0;
+	base = 2;
     }
 
 
     @Override
     public Byte get(int index) {
         // TODO Auto-generated method stub
-        return null;
+	if (index < 0 || index >= size) throw new IndexOutOfBoundsException();
+        Node current = head;
+        for (int i = 0; i < index; i++) {
+            current = current.next;
+        }
+        return current.value;
     }
 
 
